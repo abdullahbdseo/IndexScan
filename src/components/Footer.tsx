@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckSquare, ShieldCheck, Heart, Github } from 'lucide-react';
+import { CheckSquare, ShieldCheck, Heart, Sparkles, Code2 } from 'lucide-react';
 
 interface FooterProps {
   onLogoClick?: () => void;
@@ -28,6 +28,20 @@ export const Footer: React.FC<FooterProps> = ({ onLogoClick }) => {
               Check Which URLs Are Visible on Google & Request Fast Indexing
             </p>
           </div>
+
+          {/* Crafted by Saleh Badge */}
+          <div className="flex items-center space-x-2">
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 shadow-sm text-xs text-surface-600 dark:text-surface-300">
+              <span className="flex items-center space-x-1">
+                <span>Designed & Built with</span>
+                <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 animate-pulse" />
+                <span>by</span>
+              </span>
+              <span className="font-bold text-surface-900 dark:text-white bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent text-sm tracking-wide">
+                Saleh
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Disclaimer & Copyright */}
@@ -35,10 +49,12 @@ export const Footer: React.FC<FooterProps> = ({ onLogoClick }) => {
           <p>
             Google is a trademark of Google LLC. IndexCheck is an independent SEO utility tool not affiliated with or endorsed by Google LLC.
           </p>
-          <div className="flex items-center space-x-4">
-            <span>Ephemeral Processing (No Database Storage)</span>
+          <div className="flex items-center space-x-3">
+            <span>Ephemeral Processing</span>
             <span>•</span>
-            <span>Free Web App</span>
+            <span className="text-surface-600 dark:text-surface-300 font-semibold">
+              © {new Date().getFullYear()} Saleh
+            </span>
           </div>
         </div>
       </div>
