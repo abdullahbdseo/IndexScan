@@ -1,0 +1,41 @@
+{
+  "name": "apex-autonomous-seo-platform",
+  "version": "1.0.0",
+  "description": "Production Autonomous AI SEO Audit, Diagnosis, Auto-Fix, and Verification Platform",
+  "main": "dist/server/server.js",
+  "type": "module",
+  "scripts": {
+    "dev:server": "tsx watch server/server.ts",
+    "dev:client": "vite",
+    "dev": "concurrently \"tsx watch server/server.ts\" \"vite\"",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:client && npm run build:server",
+    "start": "node dist/server/server.js",
+    "test": "tsx test/runTests.ts"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "lucide-react": "^0.475.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.29.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.4",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "exceljs": "^4.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}
