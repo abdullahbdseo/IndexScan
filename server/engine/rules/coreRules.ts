@@ -1424,7 +1424,7 @@ export const ALL_SEO_RULES: SeoRule[] = [
     severity: 'LOW',
     title: 'Missing X-Content-Type-Options Security Header',
     description: 'Server response does not set "X-Content-Type-Options: nosniff", which prevents MIME-type sniffing attacks.',
-    rootCauseType: 'SERVER',
+    rootCauseType: 'SERVER_CONFIG',
     autoFixSupported: false,
     evaluate: (ctx) => {
       const headers = ctx.page.rawHeaders || {};

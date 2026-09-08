@@ -184,9 +184,9 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
   const h1: string[] = [];
   const h2: string[] = [];
   const h3: string[] = [];
-  $('h1').each((_, el) => h1.push($(el).text().trim().slice(0, 120)));
-  $('h2').each((_, el) => h2.push($(el).text().trim().slice(0, 120)));
-  $('h3').each((_, el) => h3.push($(el).text().trim().slice(0, 120)));
+  $('h1').each((_, el) => { h1.push($(el).text().trim().slice(0, 120)); });
+  $('h2').each((_, el) => { h2.push($(el).text().trim().slice(0, 120)); });
+  $('h3').each((_, el) => { h3.push($(el).text().trim().slice(0, 120)); });
 
   // Schema
   const schemaRaw: string[] = [];

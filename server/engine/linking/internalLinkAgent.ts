@@ -69,7 +69,7 @@ export class InternalLinkAgent {
 
       const isOrphan = orphanUrls.has(targetPage.url);
       const targetNode = graph.nodes.get(targetPage.url);
-      const targetPageRank = targetNode?.pageRank || 0.1;
+      const targetPageRank = targetNode?.pageRankScore || 0.1;
 
       for (const sourcePage of allPages) {
         if (sourcePage.url === targetPage.url) continue; // No self-links
@@ -86,7 +86,7 @@ export class InternalLinkAgent {
         for (const kw of targetKeywords) {
           if (sourceText.includes(kw.toLowerCase()) && kw.length >= 4) {
             const sourceNode = graph.nodes.get(sourcePage.url);
-            const sourcePageRank = sourceNode?.pageRank || 0.1;
+            const sourcePageRank = sourceNode?.pageRankScore || 0.1;
 
             const equityTransfer: InternalLinkOpportunity['equityTransferPotential'] = 
               sourcePageRank > targetPageRank ? 'HIGH' : 'MEDIUM';
