@@ -254,33 +254,6 @@ export default function AuditPage() {
               </div>
             </div>
 
-            {/* Quick Demo Chips */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-surface-500 dark:text-surface-400">
-              <span className="font-semibold text-surface-600 dark:text-surface-300">Quick Samples:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setUrl('https://www.primemovebd.com/');
-                  handleAudit('https://www.primemovebd.com/');
-                }}
-                disabled={loading}
-                className="px-2.5 py-1 rounded-lg bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 font-medium transition-colors"
-              >
-                primemovebd.com
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUrl('https://wordpress.org/');
-                  handleAudit('https://wordpress.org/');
-                }}
-                disabled={loading}
-                className="px-2.5 py-1 rounded-lg bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 font-medium transition-colors"
-              >
-                wordpress.org
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
