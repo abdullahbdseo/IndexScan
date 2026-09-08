@@ -1,9 +1,9 @@
 // ============================================================
-//  IndexScan — Professional Excel Report Builder (7 Sheets)
-//  Uses exceljs
+//  IndexScan — Professional Excel Report Builder (8 Sheets)
+//  Fully editable in Microsoft Excel, Google Sheets, & LibreOffice
 // ============================================================
 import ExcelJS from 'exceljs';
-import type { AuditResult, SeoCheck } from './seoAuditEngine.js';
+import type { AuditResult, SeoCheck } from './seoAuditEngine';
 
 const C = {
   maroon    : 'FF700D18',
@@ -22,22 +22,34 @@ const C = {
   greenBg   : 'FFF0FDF4',
   indigo    : 'FF4F46E5',
   indigoBg  : 'FFEEF2FF',
-  headerBg  : 'FF1E293B',
-  subHdrBg  : 'FF334155',
-  slate     : 'FF475569',
+  subHdrBg  : 'FF1E293B',
 };
 
-type CellStyle = {
-  bold?: boolean; italic?: boolean; fontSize?: number; color?: string;
-  bg?: string; align?: 'left'|'center'|'right'; valign?: 'top'|'middle'|'bottom';
+// Safe hyperlink builder that never breaks OpenXML validation
+function safeHyperlink(urlStr: string): { text: string; hyperlink: string } | string {
+  if (!urlStr || typeof urlStr !== 'string') return '';
+  const trimmed = urlStr.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
+  try {
+    const encoded = encodeURI(trimmed);
+    if (encoded.length > 2000) return trimmed;
+    return { text: trimmed, hyperlink: encoded };
+  } catch {
+    return trimmed;
+  }
+}
+
+function s(cell: ExcelJS.Cell, opts: {
+  bold?: boolean; italic?: boolean; fontSize?: number;
+  color?: string; bg?: string; align?: ExcelJS.Alignment['horizontal'];
   wrap?: boolean; border?: boolean;
-};
-
-function s(cell: ExcelJS.Cell, o: CellStyle = {}) {
-  const { bold=false, italic=false, fontSize=10, color=C.black, bg, align='left',
-    valign='middle', wrap=true, border=true } = o;
-  cell.font = { bold, italic, size: fontSize, color: { argb: color } };
-  cell.alignment = { horizontal: align, vertical: valign, wrapText: wrap };
+}) {
+  const { bold = false, italic = false, fontSize = 10, color = C.black,
+          bg, align = 'left', wrap = false, border = true } = opts;
+  cell.font = { name: 'Arial', size: fontSize, bold, italic, color: { argb: color } };
+  cell.alignment = { horizontal: align, vertical: 'middle', wrapText: wrap };
+  // Explicitly ensure every cell is unlocked for editing
+  cell.protection = { locked: false };
   if (bg) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
   if (border) {
     const bs: ExcelJS.Border = { style: 'thin', color: { argb: 'FFE5E7EB' } };
@@ -50,8 +62,8 @@ function titleRow(ws: ExcelJS.Worksheet, text: string, r: number, cols: number, 
   ws.mergeCells(`A${r}:${end}${r}`);
   const cell = ws.getCell(`A${r}`);
   cell.value = text;
-  s(cell, { bold: true, fontSize: 14, color: C.white, bg, align: 'center' });
-  ws.getRow(r).height = 36;
+  s(cell, { bold: true, fontSize: 13, color: C.white, bg, align: 'center' });
+  ws.getRow(r).height = 34;
 }
 
 function subHdrRow(ws: ExcelJS.Worksheet, cols: string[], r: number) {
@@ -64,9 +76,9 @@ function subHdrRow(ws: ExcelJS.Worksheet, cols: string[], r: number) {
 }
 
 function statusOf(status: string): { label: string; color: string; bg: string } {
-  if (status === 'PASS') return { label: '✅ PASS',  color: C.green,  bg: C.greenBg  };
-  if (status === 'WARN') return { label: '⚠️ WARN',  color: C.yellow, bg: C.yellowBg };
-  if (status === 'FAIL') return { label: '❌ FAIL',  color: C.red,    bg: C.redBg    };
+  if (status === 'PASS') return { label: 'PASS',  color: C.green,  bg: C.greenBg  };
+  if (status === 'WARN') return { label: 'WARN',  color: C.yellow, bg: C.yellowBg };
+  if (status === 'FAIL') return { label: 'FAIL',  color: C.red,    bg: C.redBg    };
   return { label: status, color: C.gray, bg: C.grayBg };
 }
 
@@ -83,37 +95,43 @@ function priorityStyle(p: string): { color: string; bg: string } {
   return                       { color: C.green,  bg: C.greenBg  };
 }
 
-// ── Sheet 1: Executive Summary ─────────────────────────────────
+// ── Sheet 1: Executive Summary ──────────────────────────────
 function sheetSummary(wb: ExcelJS.Workbook, a: AuditResult) {
-  const ws = wb.addWorksheet('📊 Executive Summary', { properties: { tabColor: { argb: C.maroon } } });
+  // Use ASCII sheet name to prevent Excel XML validation & repair errors
+  const ws = wb.addWorksheet('Executive Summary', { properties: { tabColor: { argb: C.maroon } } });
   ws.columns = [
-    { width: 3 },{ width: 26 },{ width: 16 },{ width: 14 },{ width: 46 },{ width: 14 },
+    { width: 6 },   // A: #
+    { width: 28 },  // B: Category / Metric
+    { width: 16 },  // C: Score / Value 1
+    { width: 16 },  // D: Rating / Metric 2
+    { width: 46 },  // E: Finding / Value 2
+    { width: 14 },  // F: Priority
   ];
 
   // Title block
   ws.mergeCells('A1:F1');
   const t = ws.getCell('A1');
-  t.value = `🔍  SEO AUDIT REPORT — ${a.domain.toUpperCase()}`;
-  s(t, { bold: true, fontSize: 18, color: C.white, bg: C.maroon, align: 'center' });
-  ws.getRow(1).height = 50;
+  t.value = `SEO AUDIT REPORT — ${a.domain.toUpperCase()}`;
+  s(t, { bold: true, fontSize: 16, color: C.white, bg: C.maroon, align: 'center' });
+  ws.getRow(1).height = 46;
 
   ws.mergeCells('A2:F2');
   const sub = ws.getCell('A2');
-  sub.value = `URL: ${a.url}   |   Audited: ${new Date(a.auditedAt).toLocaleString()}   |   By IndexScan AI`;
-  s(sub, { italic: true, fontSize: 10, color: C.gray, bg: C.ivory, align: 'center' });
+  sub.value = `URL: ${a.url}   |   Audited: ${new Date(a.auditedAt).toLocaleString()}   |   Generated by IndexScan AI (Editable Report)`;
+  s(sub, { italic: true, fontSize: 9.5, color: C.gray, bg: C.ivory, align: 'center' });
   ws.getRow(2).height = 22;
 
   ws.getRow(3).height = 8;
-  titleRow(ws, '📈  OVERALL SEO SCORE CARD', 4, 6);
+  titleRow(ws, 'OVERALL SEO SCORE CARD', 4, 6);
   subHdrRow(ws, ['#', 'Category', 'Score', 'Rating', 'Key Finding', 'Priority'], 5);
 
   const cats = [
-    [1, 'On-Page SEO',            a.scores.onPage,    a.scores.onPage >= 75 ? 'PASS' : a.scores.onPage >= 50 ? 'WARN' : 'FAIL', 'Title, description, headings, meta', 'HIGH'],
+    [1, 'On-Page SEO',            a.scores.onPage,    a.scores.onPage >= 75 ? 'PASS' : a.scores.onPage >= 50 ? 'WARN' : 'FAIL', 'Title, description, headings, meta tags', 'HIGH'],
     [2, 'Technical SEO',          a.scores.technical, a.scores.technical >= 75 ? 'PASS' : 'WARN', 'Canonical, HTTPS, robots.txt, sitemap', 'HIGH'],
-    [3, 'Social (OG & Twitter)',  a.scores.social,    a.scores.social >= 75 ? 'PASS' : a.scores.social === 0 ? 'FAIL' : 'WARN', 'Open Graph & Twitter Card tags', 'CRITICAL'],
-    [4, 'Schema / Structured Data', a.scores.schema,  a.scores.schema > 0 ? 'WARN' : 'FAIL', 'JSON-LD LocalBusiness, Service schemas', 'CRITICAL'],
-    [5, 'Images & Media',         a.scores.images,    a.scores.images >= 75 ? 'PASS' : 'WARN', `${a.meta.imagesMissingAlt} images missing alt text`, 'MEDIUM'],
-    [6, 'Performance',            a.scores.performance, a.scores.performance >= 75 ? 'PASS' : 'WARN', 'Preload, DNS prefetch, CDN usage', 'MEDIUM'],
+    [3, 'Social (OG & Twitter)',  a.scores.social,    a.scores.social >= 75 ? 'PASS' : a.scores.social === 0 ? 'FAIL' : 'WARN', 'Open Graph & Twitter Card preview tags', 'CRITICAL'],
+    [4, 'Schema / Structured Data', a.scores.schema,  a.scores.schema > 0 ? 'WARN' : 'FAIL', 'JSON-LD LocalBusiness & Service schemas', 'CRITICAL'],
+    [5, 'Images & Media',         a.scores.images,    a.scores.images >= 75 ? 'PASS' : a.scores.images >= 50 ? 'WARN' : 'FAIL', a.meta.imagesMissingAlt === 0 ? 'All images have alt text' : `${a.meta.imagesMissingAlt} images missing alt text (See Sheet 'Images & Alt Texts')`, a.meta.imagesMissingAlt > 10 ? 'HIGH' : 'MEDIUM'],
+    [6, 'Performance',            a.scores.performance, a.scores.performance >= 75 ? 'PASS' : 'WARN', 'Preload, DNS prefetch, CDN resource usage', 'MEDIUM'],
     [7, 'OVERALL SCORE',          a.scores.overall,   a.scores.overall >= 75 ? 'PASS' : a.scores.overall >= 50 ? 'WARN' : 'FAIL', `${a.checks.filter(c => c.status === 'FAIL').length} FAIL, ${a.checks.filter(c => c.status === 'WARN').length} WARN, ${a.checks.filter(c => c.status === 'PASS').length} PASS`, '—'],
   ];
 
@@ -140,291 +158,353 @@ function sheetSummary(wb: ExcelJS.Workbook, a: AuditResult) {
 
   // Quick Stats
   let r = 6 + cats.length + 2;
-  titleRow(ws, '📌  QUICK STATS', r, 6);
+  titleRow(ws, 'QUICK AUDIT SUMMARY', r, 6);
+  r++;
+
+  subHdrRow(ws, ['Metric 1', 'Value 1', '', 'Metric 2', 'Value 2', ''], r);
+  ws.mergeCells(`A${r}:B${r}`);
+  ws.mergeCells(`D${r}:F${r}`);
   r++;
 
   const stats: [string, string, string, string][] = [
-    ['🌐 Domain',           a.domain,                       '🔒 HTTPS',        a.isHttps ? '✅ Secure' : '❌ Not Secure'],
-    ['📞 Phone',            a.meta.phone || '(not found)',  '📧 Email',        a.meta.email || '(not found)'],
-    ['🏷️ OG Tags',          a.meta.ogTitle ? '✅ Present' : '❌ MISSING',       '🐦 Twitter Card', a.meta.twitterCard ? '✅ Present' : '❌ MISSING'],
-    ['🔗 Canonical',        a.meta.canonical ? '✅ Present' : '❌ MISSING',     '🧩 Schema',       a.meta.schemaTypes.length > 0 ? `✅ ${a.meta.schemaTypes.join(', ')}` : '❌ MISSING'],
-    ['🤖 Robots.txt',       a.robotsTxt.exists ? '✅ Exists' : '❌ Missing',   '🗺️ Sitemap',       a.sitemap.exists ? `✅ ${a.sitemap.urlCount} URLs` : '❌ Missing'],
-    ['📊 Analytics',        a.meta.hasGA ? '✅ GA4 Active' : '❌ Not detected', '🖼️ Images Alt',   `${a.meta.imagesTotal - a.meta.imagesMissingAlt}/${a.meta.imagesTotal} have alt`],
-    ['🔗 Internal Links',   `${a.meta.internalLinks}`,     '🌍 External Links', `${a.meta.externalLinks}`],
-    ['📱 Social Profiles',  `${a.meta.socialLinks.length} found`,            '🔍 Google Verified', a.meta.googleVerification ? '✅ Yes' : '❌ No'],
+    ['Domain',           a.domain,                       'HTTPS',              a.isHttps ? 'Secure' : 'Not Secure'],
+    ['Phone',            a.meta.phone || '(not found)',  'Email',              a.meta.email || '(not found)'],
+    ['OG Tags',          a.meta.ogTitle ? 'Present' : 'MISSING',       'Twitter Card',       a.meta.twitterCard ? 'Present' : 'MISSING'],
+    ['Canonical',        a.meta.canonical ? 'Present' : 'MISSING',     'Schema Types',       a.meta.schemaTypes.length > 0 ? a.meta.schemaTypes.join(', ') : 'MISSING'],
+    ['Robots.txt',       a.robotsTxt.exists ? 'Exists' : 'Missing',    'Sitemap',            a.sitemap.exists ? `${a.sitemap.urlCount} URLs` : 'Missing'],
+    ['Analytics',        a.meta.hasGA ? 'GA4 Active' : 'Not detected', 'Images Alt Coverage', `${a.meta.imagesTotal - a.meta.imagesMissingAlt}/${a.meta.imagesTotal} have alt (${a.meta.imagesMissingAlt} missing)`],
+    ['Internal Links',   `${a.meta.internalLinks}`,                    'External Links',     `${a.meta.externalLinks}`],
+    ['Social Profiles',  `${a.meta.socialLinks.length} found`,          'Google Verification', a.meta.googleVerification ? 'Verified' : 'No'],
   ];
 
   stats.forEach(([k1, v1, k2, v2]) => {
     ws.getRow(r).height = 22;
     const even = r % 2 === 0;
-    (['A','B','C','D'] as const).forEach((L, j) => {
-      const cell = ws.getCell(`${L}${r}`);
-      const val  = [k1, v1, k2, v2][j];
-      const isKey = j === 0 || j === 2;
-      cell.value  = val;
-      if (isKey) s(cell, { bold: true, fontSize: 10, color: C.maroon, bg: C.ivory });
-      else {
-        const miss = String(val).includes('MISSING') || String(val).includes('❌');
-        s(cell, { fontSize: 10, bold: miss, color: miss ? C.red : C.black, bg: even ? C.grayBg : C.white });
-      }
+
+    // Col A & B: Metric 1 & Value 1
+    const cA = ws.getCell(`A${r}`);
+    cA.value = k1;
+    s(cA, { bold: true, fontSize: 9.5, color: C.maroon, bg: C.ivory });
+
+    const cB = ws.getCell(`B${r}`);
+    cB.value = v1;
+    const miss1 = String(v1).includes('MISSING') || String(v1).includes('Not Secure');
+    s(cB, { fontSize: 9.5, bold: miss1, color: miss1 ? C.red : C.black, bg: even ? C.grayBg : C.white });
+
+    // Col C & D: Metric 2 & Value 2 (Merge E & F for extra room)
+    const cC = ws.getCell(`C${r}`);
+    cC.value = k2;
+    s(cC, { bold: true, fontSize: 9.5, color: C.maroon, bg: C.ivory });
+
+    ['D', 'E', 'F'].forEach(col => {
+      const cell = ws.getCell(`${col}${r}`);
+      const miss2 = String(v2).includes('MISSING') || String(v2).includes('Not Secure');
+      s(cell, { fontSize: 9.5, bold: miss2, color: miss2 ? C.red : C.black, bg: even ? C.grayBg : C.white });
     });
+    ws.getCell(`D${r}`).value = v2;
+    ws.mergeCells(`D${r}:F${r}`);
+
     r++;
   });
 }
 
-// ── Sheet 2: All Checks ────────────────────────────────────────
-function sheetAllChecks(wb: ExcelJS.Workbook, a: AuditResult) {
-  const ws = wb.addWorksheet('📋 All SEO Checks', { properties: { tabColor: { argb: 'FF6366F1' } } });
+// ── Sheet 2: Images & Alt Texts ─────────────────────────────
+function sheetImages(wb: ExcelJS.Workbook, a: AuditResult) {
+  const ws = wb.addWorksheet('Images & Alt Texts', { properties: { tabColor: { argb: 'FF10B981' } } });
   ws.columns = [
-    { width: 22 }, { width: 14 }, { width: 12 }, { width: 42 }, { width: 42 }, { width: 12 },
+    { width: 5 },   // A: #
+    { width: 18 },  // B: Status
+    { width: 62 },  // C: Image URL (Clickable)
+    { width: 30 },  // D: Current Alt Text
+    { width: 44 },  // E: Suggested Alt / Action
+    { width: 14 },  // F: Priority
   ];
-  titleRow(ws, '📋  ALL SEO CHECKS — ' + a.domain, 1, 6);
-  subHdrRow(ws, ['Check Name', 'Category', 'Status', 'Current State', 'Recommendation', 'Effort'], 2);
 
-  a.checks.forEach((c, i) => {
-    const r = 3 + i;
-    ws.getRow(r).height = 44;
-    const even = r % 2 === 0;
-    const st = statusOf(c.status);
-    const catColors: Record<string, string> = {
-      ON_PAGE: C.indigo, TECHNICAL: C.slate, SOCIAL: C.gold,
-      SCHEMA: 'FF8B5CF6', IMAGES: 'FF0EA5E9', ANALYTICS: C.green, PERFORMANCE: C.yellow, LINKS: 'FF14B8A6',
-    };
+  titleRow(ws, `IMAGE AUDIT & ALT TEXT FIX LIST — ${a.domain.toUpperCase()}`, 1, 6, C.green);
 
-    ['A','B','C','D','E','F'].forEach((L, j) => {
-      const cell = ws.getCell(`${L}${r}`);
-      const vals = [c.name, c.category.replace('_', ' '), c.status, c.current, c.recommended, c.effort];
-      cell.value = vals[j];
-      if (j === 0) s(cell, { bold: true, fontSize: 9, bg: even ? C.ivory : C.white });
-      else if (j === 1) s(cell, { bold: true, fontSize: 9, color: catColors[c.category] ?? C.slate, bg: even ? C.ivory : C.white, align: 'center' });
-      else if (j === 2) { s(cell, { bold: true, fontSize: 9, color: st.color, bg: st.bg, align: 'center' }); }
-      else s(cell, { fontSize: 9, bg: even ? C.ivory : C.white });
-    });
-  });
-}
+  // Subtitle info
+  ws.mergeCells('A2:F2');
+  const cov = a.meta.imagesTotal > 0 
+    ? Math.round(((a.meta.imagesTotal - a.meta.imagesMissingAlt) / a.meta.imagesTotal) * 100) 
+    : 100;
+  ws.getCell('A2').value = `Total Images: ${a.meta.imagesTotal}   |   Missing Alt Text: ${a.meta.imagesMissingAlt}   |   Alt Coverage: ${cov}%   |   You can freely edit or update alt suggestions in this sheet.`;
+  s(ws.getCell('A2'), { fontSize: 8.5, color: C.gray, bg: C.ivory, align: 'center' });
+  ws.getRow(2).height = 22;
 
-// ── Sheet 3: Critical Issues ───────────────────────────────────
-function sheetCritical(wb: ExcelJS.Workbook, a: AuditResult) {
-  const ws = wb.addWorksheet('🔴 Critical Issues', { properties: { tabColor: { argb: 'FFEF4444' } } });
-  ws.columns = [{ width: 26 },{ width: 12 },{ width: 14 },{ width: 40 },{ width: 44 },{ width: 12 }];
-  titleRow(ws, '🔴  CRITICAL & HIGH PRIORITY ISSUES', 1, 6, 'FFDC2626');
-  subHdrRow(ws, ['Issue', 'Severity', 'Category', 'Current State', 'Fix Required', 'Effort'], 2);
+  subHdrRow(ws, ['#', 'ALT STATUS', 'IMAGE URL (CLICKABLE LINK)', 'CURRENT ALT TEXT', 'SUGGESTED ALT TEXT / ACTION', 'PRIORITY'], 3);
 
-  const critical = a.checks.filter(c => c.status === 'FAIL' || (c.status === 'WARN' && c.severity === 'CRITICAL'))
-    .sort((x, y) => { const o = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 }; return (o[x.severity]??9) - (o[y.severity]??9); });
-
-  if (critical.length === 0) {
-    ws.mergeCells('A3:F3');
-    const cell = ws.getCell('A3');
-    cell.value = '🎉 No critical issues found! Site is well optimized.';
-    s(cell, { bold: true, fontSize: 12, color: C.green, bg: C.greenBg, align: 'center' });
-    ws.getRow(3).height = 40;
+  const images = a.imagesList || [];
+  if (images.length === 0) {
+    ws.mergeCells('A4:F4');
+    ws.getCell('A4').value = 'No standard <img> elements detected on this webpage.';
+    s(ws.getCell('A4'), { fontSize: 9, align: 'center', bg: C.ivory });
+    ws.getRow(4).height = 24;
     return;
   }
 
-  critical.forEach((c, i) => {
-    const r = 3 + i;
-    ws.getRow(r).height = 52;
+  // Sort: missing alt first so user can fix immediately
+  const sorted = [...images].sort((x, y) => (x.hasAlt === y.hasAlt ? 0 : x.hasAlt ? 1 : -1));
+
+  sorted.forEach((img, i) => {
+    const r = 4 + i;
+    ws.getRow(r).height = 24;
     const even = r % 2 === 0;
-    const ps = priorityStyle(c.severity);
+    const bg = !img.hasAlt ? C.redBg : (even ? C.ivory : C.white);
 
-    ['A','B','C','D','E','F'].forEach((L, j) => {
-      const cell = ws.getCell(`${L}${r}`);
-      const vals = [c.name, c.severity, c.category.replace('_',' '), c.current, c.recommended, c.effort];
-      cell.value = vals[j];
-      if (j === 1) s(cell, { bold:true, fontSize:9, color: ps.color, bg: ps.bg, align:'center' });
-      else if (j === 2) s(cell, { bold:true, fontSize:9, color: C.slate, align:'center', bg: even ? C.ivory : C.white });
-      else s(cell, { fontSize:9, bg: even ? C.ivory : C.white });
+    // #
+    const cA = ws.getCell(`A${r}`);
+    cA.value = i + 1;
+    s(cA, { fontSize: 9, color: C.gray, bg, align: 'center' });
+
+    // Status
+    const cB = ws.getCell(`B${r}`);
+    cB.value = img.hasAlt ? 'HAS ALT' : 'MISSING ALT';
+    s(cB, { 
+      bold: true, 
+      fontSize: 9, 
+      color: img.hasAlt ? C.green : C.red, 
+      bg: img.hasAlt ? C.greenBg : C.redBg, 
+      align: 'center' 
+    });
+
+    // Image URL with safe hyperlink
+    const cC = ws.getCell(`C${r}`);
+    const hl = safeHyperlink(img.src);
+    cC.value = hl;
+    s(cC, { fontSize: 8.5, color: 'FF2563EB', bg });
+    if (typeof hl === 'object') {
+      cC.font = { underline: true, color: { argb: 'FF2563EB' }, size: 8.5 };
+    }
+
+    // Current Alt Text
+    const cD = ws.getCell(`D${r}`);
+    cD.value = img.hasAlt ? img.alt : '[NO ALT ATTRIBUTE]';
+    s(cD, { 
+      fontSize: 9, 
+      color: img.hasAlt ? C.black : C.red, 
+      bold: !img.hasAlt, 
+      bg 
+    });
+
+    // Suggested Alt / Action (User can edit this in Excel!)
+    const cE = ws.getCell(`E${r}`);
+    cE.value = img.hasAlt ? 'Good — image already has alt text' : (img.suggestedAlt || 'Add descriptive alt text with target keyword');
+    s(cE, { fontSize: 9, color: img.hasAlt ? C.gray : C.black, bg });
+
+    // Priority
+    const cF = ws.getCell(`F${r}`);
+    cF.value = img.hasAlt ? 'LOW' : 'HIGH';
+    s(cF, { 
+      bold: true, 
+      fontSize: 9, 
+      color: img.hasAlt ? C.green : C.red, 
+      bg: img.hasAlt ? C.greenBg : C.redBg, 
+      align: 'center' 
     });
   });
 }
 
-// ── Sheet 4: Schema Code ───────────────────────────────────────
-function sheetSchema(wb: ExcelJS.Workbook, a: AuditResult) {
-  const ws = wb.addWorksheet('🧩 Schema Code', { properties: { tabColor: { argb: 'FF8B5CF6' } } });
-  ws.columns = [{ width: 110 }];
-  titleRow(ws, '🧩  RECOMMENDED SCHEMA MARKUP — Copy & Paste into <head>', 1, 1);
-
-  const schemaCode = `<!-- 1. LocalBusiness Schema — Add to Homepage <head> -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "LocalBusiness",
-  "name": "${a.domain}",
-  "description": "${a.meta.description.slice(0, 120) || 'Professional services'}",
-  "url": "${a.url}",
-  "telephone": "${a.meta.phone || '+880XXXXXXXXXX'}",
-  "email": "${a.meta.email || 'contact@' + a.domain}",
-  "address": {
-    "@type": "PostalAddress",
-    "addressCountry": "BD"
-  },
-  "areaServed": "Bangladesh"
-}
-</script>
-
-<!-- 2. Open Graph Tags — Add to EVERY page <head> -->
-<meta property="og:type"        content="website">
-<meta property="og:site_name"   content="${a.domain}">
-<meta property="og:title"       content="${a.meta.title || a.domain}">
-<meta property="og:description" content="${a.meta.description.slice(0, 155) || 'Professional services'}">
-<meta property="og:image"       content="${a.url}og-image.jpg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height"content="630">
-<meta property="og:url"         content="${a.url}">
-
-<!-- 3. Twitter Card Tags — Add to EVERY page <head> -->
-<meta name="twitter:card"        content="summary_large_image">
-<meta name="twitter:title"       content="${a.meta.title || a.domain}">
-<meta name="twitter:description" content="${a.meta.description.slice(0, 155) || 'Professional services'}">
-<meta name="twitter:image"       content="${a.url}og-image.jpg">
-
-<!-- 4. Canonical URL — Unique per page -->
-<link rel="canonical" href="${a.url}">
-
-<!-- 5. Google Analytics 4 — Replace G-XXXXXXXX -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXX"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-XXXXXXXX');
-</script>`;
-
-  let r = 2;
-  schemaCode.split('\n').forEach(line => {
-    ws.getRow(r).height = 15;
-    const cell = ws.getCell(`A${r}`);
-    cell.value = line;
-    const isComment = line.trim().startsWith('<!--') || line.trim().startsWith('#');
-    s(cell, {
-      fontSize: 9,
-      bold: isComment,
-      color: isComment ? C.maroon : C.black,
-      bg: isComment ? C.ivory : C.grayBg,
-      wrap: false,
-      border: false,
-    });
-    r++;
-  });
-}
-
-// ── Sheet 5: Action Plan ───────────────────────────────────────
-function sheetActionPlan(wb: ExcelJS.Workbook, a: AuditResult) {
-  const ws = wb.addWorksheet('🚀 Action Plan', { properties: { tabColor: { argb: C.green } } });
+// ── Sheet 3: All SEO Checks ─────────────────────────────────
+function sheetAllChecks(wb: ExcelJS.Workbook, a: AuditResult) {
+  const ws = wb.addWorksheet('All SEO Checks', { properties: { tabColor: { argb: 'FF6366F1' } } });
   ws.columns = [
-    { width: 3 },{ width: 30 },{ width: 14 },{ width: 12 },{ width: 12 },{ width: 42 },{ width: 12 },
+    { width: 5 },{ width: 14 },{ width: 28 },{ width: 12 },{ width: 12 },
+    { width: 44 },{ width: 44 },{ width: 10 },{ width: 34 },
   ];
-  titleRow(ws, '🚀  PRIORITIZED SEO ACTION PLAN — ' + a.domain, 1, 7);
 
-  const weekGroup = (label: string, bg: string, r: number) => {
-    titleRow(ws, label, r, 7, bg);
-    subHdrRow(ws, ['#', 'Task', 'Category', 'Effort', 'Impact', 'How To Fix', 'Status'], r + 1);
-    return r + 2;
-  };
+  titleRow(ws, `ALL SEO AUDIT CHECKS — ${a.domain.toUpperCase()}`, 1, 9, 'FF4338CA');
+  subHdrRow(ws, ['#', 'Category', 'Check Name', 'Status', 'Severity', 'Observed State', 'Recommended Action', 'Effort', 'Impact'], 2);
 
-  const addRows = (ws: ExcelJS.Worksheet, items: any[][], startR: number) => {
-    items.forEach(([num, task, cat, effort, impact, fix, status], i) => {
-      const r = startR + i;
-      ws.getRow(r).height = 40;
-      const even = r % 2 === 0;
-      const ps = priorityStyle(impact.replace('🔴 ','').replace('🟡 ','').replace('🟢 ',''));
-      ['A','B','C','D','E','F','G'].forEach((L, j) => {
-        const cell = ws.getCell(`${L}${r}`);
-        const vals = [num, task, cat, effort, impact, fix, status];
-        cell.value = vals[j];
-        if (j === 4) s(cell, { bold:true, fontSize:9, color: ps.color, bg: ps.bg, align:'center' });
-        else if (j === 6) s(cell, { bold:true, fontSize:9, color: C.maroon, bg: C.ivory, align:'center' });
-        else s(cell, { fontSize:9, bg: even ? C.ivory : C.white });
-      });
+  a.checks.forEach((c, i) => {
+    const r = 3 + i;
+    ws.getRow(r).height = 26;
+    const even = r % 2 === 0;
+    const st = statusOf(c.status);
+    const ps = priorityStyle(c.severity);
+    const bg = even ? C.ivory : C.white;
+
+    [
+      i + 1, c.category, c.name, st.label, c.severity,
+      c.current, c.recommended, c.effort, c.impact,
+    ].forEach((val, j) => {
+      const cell = ws.getCell(`${String.fromCharCode(65+j)}${r}`);
+      cell.value = val as string | number;
+      if (j === 0) s(cell, { fontSize: 9, color: C.gray, bg, align: 'center' });
+      else if (j === 1) s(cell, { fontSize: 8.5, color: C.indigo, bg, bold: true, align: 'center' });
+      else if (j === 2) s(cell, { fontSize: 9, bold: true, bg });
+      else if (j === 3) s(cell, { bold: true, fontSize: 9, color: st.color, bg: st.bg, align: 'center' });
+      else if (j === 4) s(cell, { bold: true, fontSize: 8.5, color: ps.color, bg: ps.bg, align: 'center' });
+      else if (j === 7) s(cell, { fontSize: 8.5, align: 'center', bg });
+      else s(cell, { fontSize: 8.5, bg, wrap: true });
     });
-    return startR + items.length + 1;
-  };
-
-  // Build week 1 from FAIL checks
-  const fails = a.checks.filter(c => c.status === 'FAIL').slice(0, 7);
-  const week1Items = fails.map((c, i) => [
-    i+1, c.name, c.category.replace('_',' '), c.effort, '🔴 CRITICAL', c.recommended, '☐ TODO',
-  ]);
-  if (week1Items.length === 0) week1Items.push([1, 'No critical fails found — maintain current SEO!', 'ALL', '—', '🟢 LOW', 'Continue monitoring and expanding content', '✅ Done']);
-
-  let r = weekGroup('🔴  WEEK 1 — Fix Critical Issues Now', 'FFDC2626', 2);
-  r = addRows(ws, week1Items, r);
-
-  // Week 2 from WARN checks
-  const warns = a.checks.filter(c => c.status === 'WARN').slice(0, 6);
-  const week2Items = warns.map((c, i) => [
-    i+1, c.name, c.category.replace('_',' '), c.effort, '🟡 HIGH', c.recommended, '☐ TODO',
-  ]);
-  if (week2Items.length === 0) week2Items.push([1, 'No warnings found', 'ALL', '—', '🟢 LOW', 'Site is performing well!', '✅ Done']);
-
-  r = weekGroup('🟡  WEEK 2 — Fix Warnings', 'FFCA8A04', r + 1);
-  r = addRows(ws, week2Items, r);
-
-  // Month 1
-  const month1: any[][] = [
-    [1, 'Complete XML Sitemap with all pages', 'Technical', '2 hrs', '🟢 MEDIUM', 'Add all service, blog, product URLs to sitemap.xml', '☐ TODO'],
-    [2, 'Add FAQ Schema to FAQ sections', 'Schema', '2 hrs', '🟢 MEDIUM', 'FAQPage JSON-LD for rich results in Google', '☐ TODO'],
-    [3, 'Add Review/AggregateRating Schema', 'Schema', '2 hrs', '🟢 MEDIUM', 'Enable star ratings in SERP for higher CTR', '☐ TODO'],
-    [4, 'Add BreadcrumbList Schema', 'Schema', '1 hr', '🟢 LOW', 'Better navigation display in search results', '☐ TODO'],
-    [5, 'Create location-specific landing pages', 'Content', '10 hrs', '🟢 MEDIUM', 'Separate pages for each city/area served', '☐ TODO'],
-    [6, 'Internal linking strategy', 'Links', '4 hrs', '🟢 MEDIUM', 'Cross-link service, blog, location pages', '☐ TODO'],
-    [7, 'Optimize image sizes and lazy loading', 'Performance', '2 hrs', '🟢 LOW', 'Add loading="lazy" to below-fold images', '☐ TODO'],
-    [8, 'Submit sitemap to Google Search Console', 'Technical', '30 min', '🟢 HIGH', 'GSC → Sitemaps → Submit sitemap.xml', '☐ TODO'],
-  ];
-  r = weekGroup('🟢  MONTH 1 — Long-term Growth', C.subHdrBg, r + 1);
-  addRows(ws, month1, r);
+  });
 }
 
-// ── Sheet 6: Sitemap Analysis ──────────────────────────────────
-function sheetSitemap(wb: ExcelJS.Workbook, a: AuditResult) {
-  const ws = wb.addWorksheet('🗺️ Sitemap & Links', { properties: { tabColor: { argb: '  FF0EA5E9' } } });
-  ws.columns = [{ width: 6 },{ width: 70 },{ width: 16 }];
-  titleRow(ws, '🗺️  SITEMAP URLS & LINK ANALYSIS — ' + a.domain, 1, 3);
+// ── Sheet 4: Critical Issues ────────────────────────────────
+function sheetCritical(wb: ExcelJS.Workbook, a: AuditResult) {
+  const ws = wb.addWorksheet('Critical Issues', { properties: { tabColor: { argb: C.red } } });
+  ws.columns = [
+    { width: 5 }, { width: 14 }, { width: 28 }, { width: 12 },
+    { width: 44 }, { width: 44 }, { width: 10 },
+  ];
 
-  ws.mergeCells('A2:C2');
-  const info = ws.getCell('A2');
-  info.value = `Sitemap: ${a.sitemap.exists ? `✅ Found — ${a.sitemap.urlCount} URLs` : '❌ Not found at /sitemap.xml'}   |   Internal Links: ${a.meta.internalLinks}   |   External Links: ${a.meta.externalLinks}`;
-  s(info, { bold: true, fontSize: 10, color: C.maroon, bg: C.ivory, align: 'center' });
-  ws.getRow(2).height = 24;
+  titleRow(ws, `CRITICAL ISSUES & WARNINGS — ${a.domain.toUpperCase()}`, 1, 7, C.red);
+  subHdrRow(ws, ['#', 'Category', 'Issue', 'Severity', 'Current State', 'How to Fix', 'Effort'], 2);
 
-  subHdrRow(ws, ['#', 'URL Found in Sitemap', 'Notes'], 3);
-
-  if (a.sitemap.urls.length === 0) {
-    ws.mergeCells('A4:C4');
-    const cell = ws.getCell('A4');
-    cell.value = a.sitemap.exists ? 'Sitemap exists but no <loc> URLs could be parsed' : 'Sitemap not found — create and submit sitemap.xml to Google Search Console';
-    s(cell, { bold: true, fontSize: 10, color: C.red, bg: C.redBg, align: 'center' });
-    ws.getRow(4).height = 30;
-  } else {
-    a.sitemap.urls.forEach((url, i) => {
-      const r = 4 + i;
-      ws.getRow(r).height = 20;
-      const even = r % 2 === 0;
-      [['A', i+1],['B', url],['C', url === a.url ? '🏠 Homepage' : url.includes('blog') ? '📝 Blog' : url.includes('service') ? '🔧 Service' : '📄 Page']].forEach(([L, v]) => {
-        const cell = ws.getCell(`${L}${r}`);
-        cell.value = v;
-        s(cell, { fontSize: 9, align: L === 'A' ? 'center' : 'left', bg: even ? C.ivory : C.white });
-      });
-    });
+  const issues = a.checks.filter(c => c.status !== 'PASS');
+  if (issues.length === 0) {
+    ws.mergeCells('A3:G3');
+    ws.getCell('A3').value = 'No issues found! Website passed all evaluated SEO checks.';
+    s(ws.getCell('A3'), { bold: true, fontSize: 11, color: C.green, align: 'center' });
+    ws.getRow(3).height = 30;
+    return;
   }
+
+  issues.forEach((c, i) => {
+    const r = 3 + i;
+    ws.getRow(r).height = 32;
+    const ps = priorityStyle(c.severity);
+    const bg = c.status === 'FAIL' ? C.redBg : C.yellowBg;
+
+    [
+      i + 1, c.category, c.name, c.severity, c.current, c.recommended, c.effort,
+    ].forEach((val, j) => {
+      const cell = ws.getCell(`${String.fromCharCode(65+j)}${r}`);
+      cell.value = val as string | number;
+      if (j === 0) s(cell, { fontSize: 9, color: C.gray, bg, align: 'center' });
+      else if (j === 1) s(cell, { fontSize: 8.5, color: C.indigo, bg, bold: true, align: 'center' });
+      else if (j === 2) s(cell, { fontSize: 9, bold: true, color: C.red, bg });
+      else if (j === 3) s(cell, { fontSize: 9, bold: true, color: ps.color, bg: ps.bg, align: 'center' });
+      else if (j === 6) s(cell, { fontSize: 9, align: 'center', bg });
+      else s(cell, { fontSize: 8.5, bg, wrap: true });
+    });
+  });
 }
 
-// ── Sheet 7: Keyword Plan ──────────────────────────────────────
-function sheetKeywords(wb: ExcelJS.Workbook, a: AuditResult) {
-  const ws = wb.addWorksheet('🔑 Keyword Plan', { properties: { tabColor: { argb: C.gold } } });
-  ws.columns = [{ width: 40 },{ width: 14 },{ width: 14 },{ width: 14 },{ width: 30 }];
-  titleRow(ws, '🔑  TARGET KEYWORD PLAN — ' + a.domain, 1, 5);
-  subHdrRow(ws, ['Keyword', 'Type', 'Intent', 'Competition', 'Target Page'], 2);
+// ── Sheet 5: Schema Code ────────────────────────────────────
+function sheetSchema(wb: ExcelJS.Workbook, a: AuditResult) {
+  const ws = wb.addWorksheet('Schema Code', { properties: { tabColor: { argb: 'FF8B5CF6' } } });
+  ws.columns = [{ width: 4 }, { width: 90 }];
 
-  const allKw = [
-    ...a.keywords.primary.map(k => [k, '🔴 Primary', 'Commercial', 'HIGH', 'Homepage']),
-    ...a.keywords.secondary.map(k => [k, '🟡 Secondary', 'Commercial', 'MED', 'Service Pages']),
-    ...a.keywords.longtail.map(k => [k, '🟢 Long-tail', 'Local', 'LOW', 'Location Pages']),
-    // Generic suggestions
-    [a.domain + ' review', '🟢 Brand', 'Navigational', 'LOW', 'Homepage'],
-    ['best ' + a.domain.replace(/\.(com|net|org|bd)$/, ''), '🟡 Secondary', 'Commercial', 'MED', 'Homepage'],
-    [a.domain.replace(/\.(com|net|org|bd)$/, '') + ' near me', '🟢 Local', 'Local', 'LOW', 'Location Pages'],
+  titleRow(ws, `READY-TO-USE JSON-LD SCHEMA — ${a.domain.toUpperCase()}`, 1, 2, 'FF6D28D9');
+
+  ws.mergeCells('A2:B2');
+  ws.getCell('A2').value = 'Copy and paste the code below inside <head> on your homepage:';
+  s(ws.getCell('A2'), { italic: true, fontSize: 10, color: C.gray, bg: C.ivory });
+  ws.getRow(2).height = 22;
+
+  const schemaJson = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: a.meta.title.split(/[-–|]/)[0].trim() || a.domain,
+    url: a.url,
+    telephone: a.meta.phone || '+880 1XXXXXXXXX',
+    email: a.meta.email || `info@${a.domain}`,
+    description: a.meta.description || `Leading service provider in ${a.domain}`,
+    image: a.meta.ogImage || `${a.url}/logo.png`,
+    priceRange: '$$',
+    address: {
+      '@type': 'PostalAddress',
+      addressCountry: 'BD',
+    },
+  };
+
+  const lines = JSON.stringify(schemaJson, null, 2).split('\n');
+  lines.forEach((line, i) => {
+    const r = 3 + i;
+    ws.getRow(r).height = 18;
+    const numCell = ws.getCell(`A${r}`);
+    numCell.value = i + 1;
+    s(numCell, { fontSize: 8.5, color: C.gray, bg: C.grayBg, align: 'center' });
+
+    const codeCell = ws.getCell(`B${r}`);
+    codeCell.value = line;
+    codeCell.font = { name: 'Courier New', size: 9, color: { argb: 'FF1E293B' } };
+    codeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8FAFC' : C.white } };
+    codeCell.alignment = { horizontal: 'left', vertical: 'middle' };
+    codeCell.protection = { locked: false };
+  });
+}
+
+// ── Sheet 6: Action Plan ────────────────────────────────────
+function sheetActionPlan(wb: ExcelJS.Workbook, a: AuditResult) {
+  const ws = wb.addWorksheet('Action Plan', { properties: { tabColor: { argb: C.green } } });
+  ws.columns = [
+    { width: 14 }, { width: 34 }, { width: 44 }, { width: 12 }, { width: 12 },
+  ];
+
+  titleRow(ws, `PRIORITIZED SEO ACTION PLAN — ${a.domain.toUpperCase()}`, 1, 5, 'FF15803D');
+  subHdrRow(ws, ['Priority', 'Action Item', 'How to Fix', 'Estimated Effort', 'Expected Impact'], 2);
+
+  const plan = [
+    ['P0 — Critical', 'Add Missing Image Alt Texts', `Add descriptive alt attributes to all ${a.meta.imagesMissingAlt} missing images. See "Images & Alt Texts" sheet for the exact URLs.`, '1 hr', 'High (Image Search & Accessibility)'],
+    ['P0 — Critical', 'Add Canonical URL Tag', 'Add <link rel="canonical" href="..."> pointing to the preferred URL on every page.', '1 hr', 'High (Prevents duplicate penalty)'],
+    ['P0 — Critical', 'Add Open Graph & Twitter Cards', 'Add og:title, og:description, og:image (1200x630px) so links show rich previews when shared.', '1 hr', 'High (Boosts click-through rates)'],
+    ['P1 — High',     'Add JSON-LD Structured Data', 'Paste the LocalBusiness schema from the "Schema Code" sheet into the <head> of your site.', '2 hrs', 'High (Knowledge Panel & Rich Snippets)'],
+    ['P1 — High',     'Submit XML Sitemap to GSC', `Submit ${a.url}/sitemap.xml in Google Search Console to index all pages properly.`, '30 min', 'High (Crawl efficiency)'],
+    ['P2 — Medium',   'Convert Images to WebP/AVIF', 'Compress and convert images to WebP or AVIF format for 30-50% faster loading speed.', '3 hrs', 'Medium (Core Web Vitals & LCP)'],
+    ['P2 — Medium',   'Optimize Headings Hierarchy', 'Ensure each page has exactly one H1 tag with target keyword, followed by clean H2 and H3 tags.', '1 hr', 'Medium (Keyword relevance)'],
+  ];
+
+  plan.forEach((row, i) => {
+    const r = 3 + i;
+    ws.getRow(r).height = 30;
+    const even = r % 2 === 0;
+    const prio = row[0];
+    const pcl = prio.includes('P0') ? { color: C.red, bg: C.redBg }
+              : prio.includes('P1') ? { color: C.yellow, bg: C.yellowBg }
+              : { color: C.green, bg: C.greenBg };
+
+    row.forEach((v, j) => {
+      const cell = ws.getCell(`${String.fromCharCode(65+j)}${r}`);
+      cell.value = v;
+      if (j === 0) s(cell, { bold: true, fontSize: 9, color: pcl.color, bg: pcl.bg, align: 'center' });
+      else if (j === 1) s(cell, { bold: true, fontSize: 9.5, bg: even ? C.ivory : C.white });
+      else s(cell, { fontSize: 9, bg: even ? C.ivory : C.white, wrap: true });
+    });
+  });
+}
+
+// ── Sheet 7: Sitemap & Links ────────────────────────────────
+function sheetSitemap(wb: ExcelJS.Workbook, a: AuditResult) {
+  const ws = wb.addWorksheet('Sitemap & Links', { properties: { tabColor: { argb: 'FF0EA5E9' } } });
+  ws.columns = [{ width: 6 }, { width: 75 }];
+
+  titleRow(ws, `SITEMAP URLs & INTERNAL LINKING — ${a.domain.toUpperCase()}`, 1, 2, 'FF0369A1');
+  subHdrRow(ws, ['#', 'URL'], 2);
+
+  const urls = a.sitemap.urls.length > 0 ? a.sitemap.urls : [a.url];
+  urls.forEach((u, i) => {
+    const r = 3 + i;
+    ws.getRow(r).height = 20;
+    const cA = ws.getCell(`A${r}`);
+    cA.value = i + 1;
+    s(cA, { fontSize: 8.5, color: C.gray, bg: i % 2 === 0 ? C.ivory : C.white, align: 'center' });
+
+    const cB = ws.getCell(`B${r}`);
+    const hl = safeHyperlink(u);
+    cB.value = hl;
+    s(cB, { fontSize: 9, color: 'FF2563EB', bg: i % 2 === 0 ? C.ivory : C.white });
+    if (typeof hl === 'object') {
+      cB.font = { underline: true, color: { argb: 'FF2563EB' }, size: 9 };
+    }
+  });
+}
+
+// ── Sheet 8: Keyword Plan ───────────────────────────────────
+function sheetKeywords(wb: ExcelJS.Workbook, a: AuditResult) {
+  const ws = wb.addWorksheet('Keyword Plan', { properties: { tabColor: { argb: C.gold } } });
+  ws.columns = [
+    { width: 34 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 30 },
+  ];
+
+  titleRow(ws, `TARGET KEYWORD OPPORTUNITIES — ${a.domain.toUpperCase()}`, 1, 5, 'FFB45309');
+  subHdrRow(ws, ['Keyword / Query', 'Type', 'Search Intent', 'Competition', 'Recommended Target Page'], 2);
+
+  const allKw: [string, string, string, string, string][] = [
+    ...a.keywords.primary.map(k => [k, 'Primary', 'Commercial', 'HIGH', 'Homepage'] as [string, string, string, string, string]),
+    ...a.keywords.secondary.map(k => [k, 'Secondary', 'Informational', 'MED', 'Service Pages'] as [string, string, string, string, string]),
+    ...a.keywords.longtail.map(k => [k, 'Long-tail', 'Transactional', 'LOW', 'Blog / Landing Page'] as [string, string, string, string, string]),
   ];
 
   allKw.forEach((row, i) => {
@@ -451,20 +531,24 @@ function sheetKeywords(wb: ExcelJS.Workbook, a: AuditResult) {
   });
 }
 
-// ── Main export ────────────────────────────────────────────────
+// ── Main export ─────────────────────────────────────────────
 export async function buildExcelReport(audit: AuditResult): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'IndexScan AI';
+  wb.lastModifiedBy = 'IndexScan AI';
   wb.created = new Date();
+  wb.modified = new Date();
   wb.title = `SEO Audit — ${audit.domain}`;
+  wb.calcProperties.fullCalcOnLoad = true;
 
   sheetSummary(wb, audit);
-  sheetAllChecks(wb, audit);
-  sheetCritical(wb, audit);
-  sheetSchema(wb, audit);
-  sheetActionPlan(wb, audit);
-  sheetSitemap(wb, audit);
-  sheetKeywords(wb, audit);
+  sheetImages(wb, audit);       // Sheet 2: Images & Alt Texts
+  sheetAllChecks(wb, audit);     // Sheet 3
+  sheetCritical(wb, audit);      // Sheet 4
+  sheetSchema(wb, audit);        // Sheet 5
+  sheetActionPlan(wb, audit);    // Sheet 6
+  sheetSitemap(wb, audit);       // Sheet 7
+  sheetKeywords(wb, audit);      // Sheet 8
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
