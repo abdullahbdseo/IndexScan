@@ -1,6 +1,6 @@
 // ============================================================
 //  IndexScan SEO Audit Engine
-//  Fetches any URL and runs 26+ SEO checks
+//  Fetches any URL and runs 26+ SEO checks + Image URL Extraction
 // ============================================================
 import * as cheerio from 'cheerio';
 
@@ -14,6 +14,14 @@ export interface SeoCheck {
   recommended: string;
   effort: string;
   impact: string;
+}
+
+export interface ImageAuditItem {
+  src: string;
+  alt: string;
+  hasAlt: boolean;
+  suggestedAlt: string;
+  isNextGen: boolean;
 }
 
 export interface PageMeta {
@@ -42,6 +50,8 @@ export interface PageMeta {
   schemaRaw: string[];
   imagesMissingAlt: number;
   imagesTotal: number;
+  imagesList: ImageAuditItem[];
+  missingAltUrls: string[];
   internalLinks: number;
   externalLinks: number;
   hasGA: boolean;
@@ -68,6 +78,8 @@ export interface AuditResult {
   sitemap: { exists: boolean; urlCount: number; urls: string[] };
   meta: PageMeta;
   checks: SeoCheck[];
+  imagesList: ImageAuditItem[];
+  missingAltUrls: string[];
   scores: {
     overall: number;
     onPage: number;
@@ -80,7 +92,7 @@ export interface AuditResult {
   keywords: { primary: string[]; secondary: string[]; longtail: string[] };
 }
 
-// ── Fetch helpers ─────────────────────────────────────────────
+// ── Fetch helpers ──────────────────────────────────────────
 async function fetchUrl(url: string, timeout = 12000): Promise<{ html: string; finalUrl: string; status: number }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
@@ -113,7 +125,7 @@ async function fetchText(url: string): Promise<{ text: string; ok: boolean }> {
   }
 }
 
-// ── Score calculation ─────────────────────────────────────────
+// ── Score calculation ───────────────────────────────────────
 function calcScore(checks: SeoCheck[], category?: SeoCheck['category']): number {
   const filtered = category ? checks.filter(c => c.category === category) : checks;
   if (filtered.length === 0) return 100;
@@ -129,7 +141,7 @@ function calcScore(checks: SeoCheck[], category?: SeoCheck['category']): number 
   return maxPossible === 0 ? 100 : Math.round((earned / maxPossible) * 100);
 }
 
-// ── Main audit function ───────────────────────────────────────
+// ── Main audit function ─────────────────────────────────────
 export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
   // Normalize URL
   if (!inputUrl.startsWith('http')) inputUrl = 'https://' + inputUrl;
@@ -153,7 +165,7 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
   const sitemapUrls = (sitemapText.match(/<loc>(.*?)<\/loc>/g) || [])
     .map(s => s.replace(/<\/?loc>/g, '').trim());
 
-  // ── Parse meta ────────────────────────────────────────────
+  // ── Parse meta ──────────────────────────────────────────
   const title = $('title').text().trim();
   const description = $('meta[name="description"]').attr('content')?.trim() ?? '';
   const keywords = $('meta[name="keywords"]').attr('content')?.trim() ?? '';
@@ -201,14 +213,66 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
     } catch { /* skip */ }
   });
 
-  // Images
-  let imagesTotal = 0;
-  let imagesMissingAlt = 0;
+  // ── Images with Full URL Extraction ──────────────────────
+  const imagesList: ImageAuditItem[] = [];
+  const missingAltUrls: string[] = [];
+  let webpCount = 0;
+
   $('img').each((_, el) => {
-    imagesTotal++;
-    const alt = $(el).attr('alt');
-    if (!alt || alt.trim() === '') imagesMissingAlt++;
+    let src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || '';
+    if (!src && $(el).attr('srcset')) {
+      src = $(el).attr('srcset')!.split(',')[0].trim().split(' ')[0];
+    }
+    src = (src || '').trim();
+    if (!src || src.startsWith('data:image/svg') || src.length < 5) return;
+
+    // Resolve relative URL to absolute URL
+    if (src.startsWith('//')) {
+      src = 'https:' + src;
+    } else if (src.startsWith('/')) {
+      try {
+        const origin = new URL(finalUrl).origin;
+        src = origin + src;
+      } catch { /* skip */ }
+    } else if (!src.startsWith('http://') && !src.startsWith('https://')) {
+      try {
+        src = new URL(src, finalUrl).href;
+      } catch { /* skip */ }
+    }
+
+    const alt = $(el).attr('alt')?.trim() ?? '';
+    const hasAlt = alt.length > 0;
+    const isNextGen = /\.webp|\.avif/i.test(src);
+    if (isNextGen) webpCount++;
+
+    // Smart suggested Alt Text based on filename and page title
+    let suggestedAlt = '';
+    try {
+      const pathname = new URL(src).pathname;
+      const rawName = pathname.split('/').pop()?.split('.')[0] || '';
+      const cleanName = decodeURIComponent(rawName)
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\d+x\d+\b/g, '')
+        .replace(/\d+/g, '')
+        .trim();
+      if (cleanName.length >= 3) {
+        suggestedAlt = `${cleanName} - ${title.slice(0, 30)}`.trim();
+      } else {
+        suggestedAlt = `${title.slice(0, 40)} image`.trim();
+      }
+    } catch {
+      suggestedAlt = `${title.slice(0, 40)} image`.trim();
+    }
+
+    if (!hasAlt) {
+      missingAltUrls.push(src);
+    }
+
+    imagesList.push({ src, alt, hasAlt, suggestedAlt, isNextGen });
   });
+
+  const imagesTotal = imagesList.length;
+  const imagesMissingAlt = missingAltUrls.length;
 
   // Links
   let internalLinks = 0;
@@ -222,7 +286,7 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
   // Analytics
   const rawHtml = html.toLowerCase();
   const hasGA = /gtag\(|google-analytics\.com|_ga|ga\.js|analytics\.js|googletagmanager\.com\/gtag/.test(rawHtml)
-    && /g-[a-z0-9]{8,}|ua-\d{7,}/i.test(html); // must have actual measurement ID
+    && /g-[a-z0-9]{8,}|ua-\d{7,}/i.test(html);
   const hasGTM = /googletagmanager\.com\/gtm\.js/.test(rawHtml);
   const hasPreload = /<link[^>]+rel=["']preload["']/.test(html);
   const hasDnsPrefetch = /<link[^>]+rel=["']dns-prefetch["']/.test(html);
@@ -250,6 +314,7 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
     keywords, h1, h2, h3, ogTitle, ogDescription, ogImage, ogUrl, ogType,
     twitterCard, twitterTitle, twitterImage, canonical, lang, viewport,
     favicon, faviconType, schemaTypes, schemaRaw, imagesMissingAlt, imagesTotal,
+    imagesList, missingAltUrls,
     internalLinks, externalLinks, hasGA, hasGTM, hasPreload, hasDnsPrefetch,
     hasTailwindCDN, hasHeroAsBg, robotsMeta, fbVerification, googleVerification,
     socialLinks, phone, email,
@@ -359,13 +424,30 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
     'Add @type:LocalBusiness with name, address, phone, rating', '2 hrs',
     'Enables Google Knowledge Panel and map listing');
 
-  // IMAGES
+  // IMAGES (With Exact URL Reporting)
+  const sampleMissing = missingAltUrls.slice(0, 6).map((u, i) => `${i + 1}. ${u}`).join('\n');
+  const moreText = missingAltUrls.length > 6 
+    ? `\n...and ${missingAltUrls.length - 6} more URLs (see "Images & Alt Texts" sheet in Excel for all ${imagesMissingAlt} URLs)` 
+    : '';
+  const altCoverage = imagesTotal > 0 ? Math.round(((imagesTotal - imagesMissingAlt) / imagesTotal) * 100) : 100;
+
   addCheck('image_alts', 'IMAGES', 'Image Alt Texts',
-    imagesMissingAlt === 0 ? 'PASS' : imagesMissingAlt <= 2 ? 'WARN' : 'FAIL',
-    imagesMissingAlt === 0 ? 'LOW' : 'MEDIUM',
-    `${imagesMissingAlt} of ${imagesTotal} images missing alt text`,
-    'All images must have descriptive alt attributes', '1 hr',
-    'Affects image search ranking and accessibility');
+    imagesMissingAlt === 0 ? 'PASS' : altCoverage >= 80 ? 'WARN' : 'FAIL',
+    imagesMissingAlt === 0 ? 'LOW' : imagesMissingAlt > 10 ? 'HIGH' : 'MEDIUM',
+    imagesMissingAlt === 0
+      ? `All ${imagesTotal} images have descriptive alt attributes.`
+      : `${imagesMissingAlt} of ${imagesTotal} images missing alt text (${altCoverage}% coverage).\n\nMissing Image URLs:\n${sampleMissing}${moreText}`,
+    `Add descriptive alt attributes describing each image. (See "Images & Alt Texts" sheet in Excel for complete list of all ${imagesMissingAlt} image URLs).`,
+    '1 hr',
+    'Directly impacts Google Image Search ranking, SEO score, and accessibility');
+
+  addCheck('image_formats', 'IMAGES', 'Next-Gen Image Formats (WebP / AVIF)',
+    webpCount > 0 ? (webpCount >= imagesTotal * 0.5 ? 'PASS' : 'WARN') : (imagesTotal === 0 ? 'PASS' : 'WARN'),
+    'LOW',
+    `${webpCount} of ${imagesTotal} images use modern formats (WebP/AVIF)`,
+    'Convert JPEG/PNG images to modern WebP or AVIF format for faster loading.',
+    '2 hrs',
+    'Reduces image file size by 30-50% improving Largest Contentful Paint (LCP)');
 
   // ANALYTICS
   addCheck('analytics', 'ANALYTICS', 'Google Analytics / GA4',
@@ -400,12 +482,18 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
     'Helps Google crawl site structure and distributes PageRank');
 
   // ── Scores ────────────────────────────────────────────────
+  const rawImageScore = calcScore(checks, 'IMAGES');
+  // Proportional alt coverage blending so 30/56 isn't punished to 0
+  const adjustedImageScore = imagesTotal > 0
+    ? Math.round((altCoverage * 0.7) + (rawImageScore * 0.3))
+    : 100;
+
   const scores = {
     onPage: calcScore(checks, 'ON_PAGE'),
     technical: calcScore(checks, 'TECHNICAL'),
     social: calcScore(checks, 'SOCIAL'),
     schema: calcScore(checks, 'SCHEMA'),
-    images: calcScore(checks, 'IMAGES'),
+    images: adjustedImageScore,
     performance: calcScore(checks, 'PERFORMANCE'),
     overall: 0,
   };
@@ -435,6 +523,8 @@ export async function runSeoAudit(inputUrl: string): Promise<AuditResult> {
     sitemap: { exists: sitemapRes.ok, urlCount: sitemapUrls.length, urls: sitemapUrls.slice(0, 20) },
     meta,
     checks,
+    imagesList,
+    missingAltUrls,
     scores,
     keywords: keywords_,
   };

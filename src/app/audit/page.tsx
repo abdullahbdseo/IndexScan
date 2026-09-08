@@ -3,12 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import type { AuditResult, SeoCheck } from '@/lib/audit/seoAuditEngine';
+import type { AuditResult, SeoCheck, ImageAuditItem } from '@/lib/audit/seoAuditEngine';
 import {
   Search, Download, AlertCircle, CheckCircle, AlertTriangle,
-  Globe, Shield, Share2, Code2, Image, Zap, Link2,
+  Globe, Shield, Share2, Code2, Image as ImageIcon, Zap, Link2,
   BarChart3, ChevronDown, ChevronUp, Loader2, FileSpreadsheet,
-  ExternalLink, Sparkles, RefreshCw, Layers, Check
+  ExternalLink, Sparkles, RefreshCw, Layers, Check, Copy, Eye, ImageOff
 } from 'lucide-react';
 
 const CATEGORY_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
@@ -16,7 +16,7 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ComponentType<{
   TECHNICAL: { label: 'Technical SEO', icon: Shield, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/60' },
   PERFORMANCE: { label: 'Performance', icon: Zap, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/60' },
   SOCIAL: { label: 'Social & OG', icon: Share2, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/60' },
-  IMAGES: { label: 'Image SEO', icon: Image, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/60' },
+  IMAGES: { label: 'Image SEO', icon: ImageIcon, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/60' },
   SCHEMA: { label: 'Schema Data', icon: Layers, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/60' },
 };
 
@@ -36,13 +36,16 @@ export default function AuditPage() {
   const [result, setResult] = useState<AuditResult | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [copiedAlt, setCopiedAlt] = useState<string | null>(null);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'FAIL' | 'WARN' | 'PASS'>('ALL');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'checks' | 'headings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'images' | 'checks' | 'headings'>('overview');
+  const [imageFilter, setImageFilter] = useState<'MISSING' | 'ALL'>('MISSING');
 
   // Scanner steps
   const [scanStep, setScanStep] = useState(0);
@@ -51,10 +54,10 @@ export default function AuditPage() {
     'Downloading & parsing DOM structure...',
     'Analyzing Title, Description & Canonical tags...',
     'Evaluating H1/H2/H3 semantic hierarchy...',
-    'Inspecting Image Alt tags & Asset compression...',
+    'Extracting all image URLs & checking Alt tags...',
     'Checking SSL/TLS & Security response headers...',
     'Auditing OpenGraph & Social card integrations...',
-    'Synthesizing final SEO score & 7-Sheet Excel workbook...',
+    'Synthesizing final SEO score & 8-Sheet Excel workbook...',
   ];
 
   useEffect(() => {
@@ -122,7 +125,7 @@ export default function AuditPage() {
         // fallback to POST
       }
 
-      // 2. Fallback to POST with auditData if cache expired or on different serverless instance
+      // 2. Fallback to POST with auditData
       if (!blob) {
         const postRes = await fetch('/api/audit/download', {
           method: 'POST',
@@ -154,6 +157,17 @@ export default function AuditPage() {
     }
   };
 
+  const copyToClipboard = (text: string, type: 'url' | 'alt') => {
+    navigator.clipboard.writeText(text);
+    if (type === 'url') {
+      setCopiedUrl(text);
+      setTimeout(() => setCopiedUrl(null), 2500);
+    } else {
+      setCopiedAlt(text);
+      setTimeout(() => setCopiedAlt(null), 2500);
+    }
+  };
+
   const checks = result?.checks ?? [];
   const passedCount = checks.filter((c) => c.status === 'PASS').length;
   const failCount = checks.filter((c) => c.status === 'FAIL').length;
@@ -179,6 +193,10 @@ export default function AuditPage() {
     }
     return true;
   });
+
+  const allImages = result?.imagesList ?? [];
+  const missingImages = allImages.filter((img) => !img.hasAlt);
+  const displayImages = imageFilter === 'MISSING' ? missingImages : allImages;
 
   const overallScore = result?.scores?.overall ?? 0;
   const grade = getGrade(overallScore);
@@ -212,7 +230,7 @@ export default function AuditPage() {
         <div className="text-center max-w-3xl mx-auto mb-10">
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 mb-4 shadow-sm">
             <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Deep SEO Audit &amp; Professional 7-Sheet Excel Generator</span>
+            <span>Deep SEO Audit &amp; Professional 8-Sheet Excel Generator</span>
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-surface-900 dark:text-white">
             Audit Any Website &amp; Download{' '}
@@ -221,7 +239,7 @@ export default function AuditPage() {
             </span>
           </h1>
           <p className="mt-3 text-base sm:text-lg text-surface-600 dark:text-surface-300 leading-relaxed">
-            Perform an exhaustive 26+ point technical and on-page SEO inspection. Instant grade, issue diagnosis, and client-ready Excel workbook export.
+            Perform an exhaustive 26+ point technical and on-page SEO inspection. Instant grade, issue diagnosis, and client-ready Excel workbook export with complete image URLs.
           </p>
         </div>
 
@@ -308,7 +326,7 @@ export default function AuditPage() {
               ></div>
             </div>
             <p className="mt-3 text-xs text-surface-400">
-              Testing on-page SEO, Meta tags, Headings, Performance, SSL &amp; Excel Builder
+              Extracting images, Meta tags, Headings, Performance, SSL &amp; Excel Builder
             </p>
           </div>
         )}
@@ -399,10 +417,16 @@ export default function AuditPage() {
                 </div>
               </div>
               <div className="bg-white dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
-                <div className="text-xs font-bold text-surface-500 uppercase tracking-wider">Warnings</div>
-                <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-1 flex items-center space-x-2">
-                  <AlertTriangle className="w-6 h-6" />
-                  <span>{warnCount}</span>
+                <div className="text-xs font-bold text-surface-500 uppercase tracking-wider">Missing Image Alt</div>
+                <div 
+                  onClick={() => setActiveTab('images')}
+                  className="cursor-pointer group"
+                >
+                  <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-1 flex items-center space-x-2 group-hover:underline">
+                    <ImageOff className="w-6 h-6 text-amber-500" />
+                    <span>{result.meta?.imagesMissingAlt ?? 0}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">View image URLs →</span>
                 </div>
               </div>
               <div className="bg-white dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
@@ -436,7 +460,7 @@ export default function AuditPage() {
             </div>
 
             {/* Tab Navigation for Detailed Results */}
-            <div className="border-b border-surface-200 dark:border-surface-800 flex items-center space-x-4">
+            <div className="border-b border-surface-200 dark:border-surface-800 flex flex-wrap items-center gap-1 sm:gap-4">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`py-3 px-4 text-sm font-bold border-b-2 transition-all ${
@@ -447,6 +471,27 @@ export default function AuditPage() {
               >
                 Action Items ({criticalIssues.length + mediumIssues.length})
               </button>
+
+              {/* DEDICATED IMAGE AUDIT TAB */}
+              <button
+                onClick={() => setActiveTab('images')}
+                className={`py-3 px-4 text-sm font-bold border-b-2 transition-all flex items-center space-x-1.5 ${
+                  activeTab === 'images'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+                    : 'border-transparent text-surface-500 hover:text-surface-900 dark:hover:text-white'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>Image URLs &amp; Alt Fixes</span>
+                <span className={`px-2 py-0.5 text-xs font-black rounded-full ${
+                  (result.meta?.imagesMissingAlt ?? 0) > 0
+                    ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
+                    : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                }`}>
+                  {result.meta?.imagesMissingAlt ?? 0} Missing
+                </span>
+              </button>
+
               <button
                 onClick={() => setActiveTab('checks')}
                 className={`py-3 px-4 text-sm font-bold border-b-2 transition-all ${
@@ -457,6 +502,7 @@ export default function AuditPage() {
               >
                 All 26+ Audit Checks ({checks.length})
               </button>
+
               <button
                 onClick={() => setActiveTab('headings')}
                 className={`py-3 px-4 text-sm font-bold border-b-2 transition-all ${
@@ -512,6 +558,14 @@ export default function AuditPage() {
                           <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 leading-relaxed">
                             <strong>Action:</strong> {item.recommended}
                           </p>
+                          {item.id === 'image_alts' && (
+                            <button
+                              onClick={() => setActiveTab('images')}
+                              className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 underline flex items-center space-x-1"
+                            >
+                              <span>View all {result.meta?.imagesMissingAlt} missing image URLs &amp; copy suggested Alt tags →</span>
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -528,7 +582,166 @@ export default function AuditPage() {
               </div>
             )}
 
-            {/* Tab 2: All 26+ Audit Checks */}
+            {/* Tab 2: DEDICATED IMAGE URL AUDIT & ALT FIX LIST */}
+            {activeTab === 'images' && (
+              <div className="space-y-6">
+                {/* Image Audit Overview Card */}
+                <div className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-black text-surface-900 dark:text-white flex items-center space-x-2">
+                      <ImageIcon className="w-5 h-5 text-emerald-600" />
+                      <span>Image URLs &amp; Alt Tag Optimization List</span>
+                    </h3>
+                    <p className="text-xs text-surface-500 dark:text-surface-400 mt-1">
+                      Total: <strong>{result.meta?.imagesTotal ?? 0}</strong> images | Missing Alt: <strong className="text-rose-600">{result.meta?.imagesMissingAlt ?? 0}</strong> | With Alt: <strong className="text-emerald-600">{(result.meta?.imagesTotal ?? 0) - (result.meta?.imagesMissingAlt ?? 0)}</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-2 w-full md:w-auto">
+                    <button
+                      onClick={() => setImageFilter('MISSING')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                        imageFilter === 'MISSING'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200'
+                      }`}
+                    >
+                      Missing Alt Only ({missingImages.length})
+                    </button>
+                    <button
+                      onClick={() => setImageFilter('ALL')}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                        imageFilter === 'ALL'
+                          ? 'bg-surface-900 text-white dark:bg-white dark:text-surface-900 shadow-sm'
+                          : 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200'
+                      }`}
+                    >
+                      All Images ({allImages.length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Images List */}
+                {displayImages.length === 0 ? (
+                  <div className="p-12 text-center bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800">
+                    <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
+                    <h4 className="text-lg font-black text-surface-900 dark:text-white">All Images Have Alt Text!</h4>
+                    <p className="text-xs text-surface-500 mt-1">Every image detected on this webpage is already optimized with alt attributes.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {displayImages.map((img, i) => (
+                      <div
+                        key={i}
+                        className={`p-4 rounded-xl border bg-white dark:bg-surface-900 transition-all ${
+                          !img.hasAlt
+                            ? 'border-rose-200 dark:border-rose-900/60 shadow-sm'
+                            : 'border-surface-200 dark:border-surface-800'
+                        }`}
+                      >
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                          {/* Image Preview & URL */}
+                          <div className="flex items-start space-x-3 w-full md:w-2/3">
+                            <div className="w-14 h-14 rounded-lg bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 shrink-0 overflow-hidden flex items-center justify-center">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={img.src}
+                                alt={img.alt || 'Preview'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${
+                                  img.hasAlt
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                                }`}>
+                                  {img.hasAlt ? 'Has Alt Text' : 'Missing Alt Text'}
+                                </span>
+                                {img.isNextGen && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                    Next-Gen
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="text-xs font-mono font-medium text-surface-900 dark:text-white mt-1 break-all line-clamp-2">
+                                {img.src}
+                              </p>
+
+                              {/* Alt Text Display */}
+                              <div className="mt-1 text-xs">
+                                {img.hasAlt ? (
+                                  <p className="text-surface-600 dark:text-surface-300">
+                                    <strong>Current Alt:</strong> &quot;{img.alt}&quot;
+                                  </p>
+                                ) : (
+                                  <div className="flex flex-wrap items-center gap-1.5 text-rose-700 dark:text-rose-300">
+                                    <strong>Suggested Alt:</strong>
+                                    <code className="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-800 text-[11px] font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+                                      {img.suggestedAlt}
+                                    </code>
+                                    <button
+                                      onClick={() => copyToClipboard(img.suggestedAlt, 'alt')}
+                                      className="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-500"
+                                      title="Copy Suggested Alt Text"
+                                    >
+                                      {copiedAlt === img.suggestedAlt ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center space-x-2 w-full md:w-auto shrink-0 justify-end">
+                            <button
+                              onClick={() => copyToClipboard(img.src, 'url')}
+                              className="px-3 py-1.5 rounded-lg border border-surface-300 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 hover:bg-surface-100 text-surface-700 dark:text-surface-300 text-xs font-semibold flex items-center space-x-1.5"
+                            >
+                              {copiedUrl === img.src ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy URL</span>
+                                </>
+                              )}
+                            </button>
+
+                            <a
+                              href={img.src}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View Image</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 3: All 26+ Audit Checks */}
             {activeTab === 'checks' && (
               <div className="space-y-4">
                 {/* Filter Bar */}
@@ -606,7 +819,7 @@ export default function AuditPage() {
                                 <h4 className="text-sm font-bold text-surface-900 dark:text-white">{chk.name}</h4>
                               </div>
                               <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5 line-clamp-1">
-                                {chk.current}
+                                {chk.current.split('\n')[0]}
                               </p>
                             </div>
                           </div>
@@ -632,12 +845,25 @@ export default function AuditPage() {
                           <div className="px-4 pb-4 pt-2 border-t border-surface-100 dark:border-surface-800/60 bg-surface-50/50 dark:bg-surface-850/40 text-xs space-y-2">
                             {chk.current && (
                               <div>
-                                <strong className="text-surface-700 dark:text-surface-300">Observed Status:</strong>
+                                <strong className="text-surface-700 dark:text-surface-300">Observed Status &amp; Evidence:</strong>
                                 <pre className="mt-1 p-2 rounded bg-surface-100 dark:bg-surface-800 text-[11px] font-mono whitespace-pre-wrap text-surface-800 dark:text-surface-200">
                                   {chk.current}
                                 </pre>
                               </div>
                             )}
+
+                            {chk.id === 'image_alts' && (result.meta?.imagesMissingAlt ?? 0) > 0 && (
+                              <div className="pt-1">
+                                <button
+                                  onClick={() => setActiveTab('images')}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5"
+                                >
+                                  <ImageIcon className="w-3.5 h-3.5" />
+                                  <span>Open Interactive Image Alt Fix Tool ({result.meta?.imagesMissingAlt} URLs) →</span>
+                                </button>
+                              </div>
+                            )}
+
                             <div>
                               <strong className="text-emerald-700 dark:text-emerald-400">Recommended Action:</strong>
                               <p className="mt-0.5 text-surface-600 dark:text-surface-300 leading-relaxed">
@@ -657,7 +883,7 @@ export default function AuditPage() {
               </div>
             )}
 
-            {/* Tab 3: Headings Structure */}
+            {/* Tab 4: Headings Structure */}
             {activeTab === 'headings' && (
               <div className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-card space-y-6">
                 <div>
