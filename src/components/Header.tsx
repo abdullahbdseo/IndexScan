@@ -1,17 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckSquare, Moon, Sun, Sparkles, Zap, Globe } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { CheckSquare, Moon, Sun, Sparkles, Zap, FileSpreadsheet } from 'lucide-react';
 
 interface HeaderProps {
-  onTryDemo: () => void;
-  onSelectTab: (tab: 'website' | 'bulk' | 'indexer' | 'how-it-works') => void;
-  activeTab: string;
+  onTryDemo?: () => void;
+  onSelectTab?: (tab: 'website' | 'bulk' | 'indexer' | 'how-it-works') => void;
+  activeTab?: string;
   onLogoClick?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTab, onLogoClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTab = '', onLogoClick }) => {
   const [isDark, setIsDark] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -33,11 +36,11 @@ export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTa
     }
   };
 
-  const handleLogoClick = () => {
-    if (onLogoClick) {
-      onLogoClick();
+  const handleNavClick = (tab: 'website' | 'bulk' | 'indexer' | 'how-it-works') => {
+    if (onSelectTab) {
+      onSelectTab(tab);
     } else {
-      onSelectTab('website');
+      router.push(`/?tab=${tab}`);
     }
   };
 
@@ -45,8 +48,8 @@ export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTa
     <header className="sticky top-0 z-40 w-full border-b border-surface-200 dark:border-surface-800 bg-white/90 dark:bg-surface-950/90 backdrop-blur-md transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Logo */}
-        <div 
-          onClick={handleLogoClick}
+        <Link 
+          href="/"
           title="Go to Homepage"
           className="flex items-center space-x-2.5 cursor-pointer group"
         >
@@ -61,12 +64,12 @@ export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTa
               API-FREE
             </span>
           </div>
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav className="hidden md:flex items-center space-x-1 lg:space-x-2">
           <button
-            onClick={() => onSelectTab('website')}
+            onClick={() => handleNavClick('website')}
             className={`px-3.5 py-2 text-sm font-medium rounded-lg transition-colors ${
               activeTab === 'website'
                 ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50'
@@ -76,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTa
             Website Checker
           </button>
           <button
-            onClick={() => onSelectTab('bulk')}
+            onClick={() => handleNavClick('bulk')}
             className={`px-3.5 py-2 text-sm font-medium rounded-lg transition-colors ${
               activeTab === 'bulk'
                 ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50'
@@ -86,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTa
             Bulk URL Checker
           </button>
           <button
-            onClick={() => onSelectTab('indexer')}
+            onClick={() => handleNavClick('indexer')}
             className={`px-3.5 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center space-x-1.5 ${
               activeTab === 'indexer'
                 ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'
@@ -96,8 +99,25 @@ export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTa
             <Zap className="w-3.5 h-3.5 fill-current text-amber-500" />
             <span>Instant Indexer</span>
           </button>
+
+          {/* Deep SEO Audit & Excel Report Nav Link */}
+          <Link
+            href="/audit"
+            className={`px-3.5 py-2 text-sm font-bold rounded-lg transition-all flex items-center space-x-1.5 ${
+              activeTab === 'audit'
+                ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800'
+                : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Deep Audit & Excel</span>
+            <span className="px-1.5 py-0.5 text-[9px] font-extrabold uppercase bg-emerald-500 text-white rounded-full">
+              New
+            </span>
+          </Link>
+
           <button
-            onClick={() => onSelectTab('how-it-works')}
+            onClick={() => handleNavClick('how-it-works')}
             className={`px-3.5 py-2 text-sm font-medium rounded-lg transition-colors ${
               activeTab === 'how-it-works'
                 ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50'
@@ -118,13 +138,23 @@ export const Header: React.FC<HeaderProps> = ({ onTryDemo, onSelectTab, activeTa
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
-          <button
-            onClick={onTryDemo}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/80 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 rounded-lg transition-all shadow-sm"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-            <span>Try Demo</span>
-          </button>
+          {onTryDemo ? (
+            <button
+              onClick={onTryDemo}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/80 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 rounded-lg transition-all shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+              <span>Try Demo</span>
+            </button>
+          ) : (
+            <Link
+              href="/audit"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-500 rounded-lg transition-all shadow-sm"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Audit Website</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>

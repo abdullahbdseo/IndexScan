@@ -10,7 +10,9 @@
     "test": "tsx --test src/tests/*.test.ts"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "fast-xml-parser": "^4.5.0",
     "lucide-react": "^0.475.0",
     "next": "^14.2.23",
