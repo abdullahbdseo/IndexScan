@@ -400,6 +400,24 @@ export default function AuditPage() {
               </div>
             </div>
 
+            {/* Excel Editability Guide Banner */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-200/80 dark:border-emerald-800/50 shadow-sm text-xs text-emerald-900 dark:text-emerald-200">
+              <div className="flex items-start sm:items-center space-x-3">
+                <span className="text-lg flex-shrink-0">📝</span>
+                <div className="leading-relaxed">
+                  <span className="font-bold text-emerald-950 dark:text-emerald-100">Excel এডিট করার নিয়ম:</span> এক্সেলে ফাইলটি ওপেন করার পর ওপরের হলুদ বার থেকে <strong className="bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded text-emerald-900 dark:text-emerald-100">&ldquo;Enable Editing&rdquo;</strong> বাটনে ক্লিক করুন। অথবা কোনো সফটওয়্যার ছাড়াই সরাসরি <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" className="underline font-bold text-emerald-950 dark:text-emerald-100 hover:text-emerald-600">Google Sheets</a>-এ ফাইলটি ড্রপ করে সম্পূর্ণ ফ্রিতে এডিট করতে পারবেন।
+                </div>
+              </div>
+              <a
+                href="https://sheets.new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center space-x-1.5 flex-shrink-0 px-3 py-1.5 rounded-lg bg-white dark:bg-surface-800 border border-emerald-300 dark:border-emerald-700 font-bold text-xs text-emerald-900 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-sm"
+              >
+                <span>Google Sheets এডিট ↗</span>
+              </a>
+            </div>
+
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
